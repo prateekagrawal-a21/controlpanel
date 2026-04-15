@@ -34,7 +34,8 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             sudo mkdir -p /var/www/controlpanel
-            sudo chown -R $USER:$USER /var/www/controlpanel
+            sudo chown -R ubuntu:ubuntu /var/www/controlpanel
+            sudo rm -rf /var/www/controlpanel/*
 
       - name: Copy files to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -45,7 +46,6 @@ jobs:
           source: "dist/*"
           target: /var/www/controlpanel
           strip_components: 1
-          rm: true
 
       - name: "Post-deploy: fix permissions & reload Nginx"
         uses: appleboy/ssh-action@v1.0.3
