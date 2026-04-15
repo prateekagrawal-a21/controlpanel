@@ -36,7 +36,7 @@ jobs:
           target: /var/www/controlpanel
           rm: true
 
-      - name: Post-deploy: fix permissions & reload Nginx
+      - name: "Post-deploy: fix permissions & reload Nginx"
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
