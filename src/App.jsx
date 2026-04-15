@@ -633,6 +633,7 @@ function generateAIRecs(alerts, now, p) {
         agent: "ops-advisor",
         confidence: 0.95,
         sev: "ok",
+        interventionId: null,
         analysis: "No threshold crossings in next 30 min. Staffing adequate.",
         rootCause: "N/A",
         action: "Continue monitoring.",
@@ -647,6 +648,7 @@ function generateAIRecs(alerts, now, p) {
       agent: "capacity-analyst",
       confidence: 0.87,
       sev: "high",
+      interventionId: "l2",
       analysis: `Stress will exceed L2 in ${l2a.mins} min. Evening captains (${p.captainEveningN}) insufficient.`,
       rootCause: "Demand exceeding dispatch capacity",
       action: `Issue L2 recall — mobilise ${recall} off-shift captains. Use What-If to verify.`,
@@ -656,6 +658,7 @@ function generateAIRecs(alerts, now, p) {
       agent: "capacity-analyst",
       confidence: 0.82,
       sev: "medium",
+      interventionId: "l1",
       analysis: `Stress approaching L1 in ${l1a.mins} min. L1 auto-activation should suffice.`,
       rootCause: "Normal peak pattern",
       action: `Brief captains for 2-order trips.`,
@@ -822,6 +825,27 @@ export default function App() {
     stress: true,
   });
   const toggleSeries = (k) => setVisible((v) => ({ ...v, [k]: !v[k] }));
+  const [acceptedByAI, setAcceptedByAI] = useState(new Set());
+
+  const handleAccept = (interventionId) => {
+    if (!interventionId) return;
+    setSelectedInterventions((p) =>
+      p.includes(interventionId) ? p : [...p, interventionId],
+    );
+    setAcceptedByAI((s) => new Set([...s, interventionId]));
+    setWiActive(true);
+    setRightTab("monitor");
+  };
+
+  const runDemo = () => {
+    setNowHour(19.0);
+    setCurrentDate(DATES[DATES.length - 1].iso);
+    setSelectedInterventions([]);
+    setWiActive(false);
+    setAcceptedByAI(new Set());
+    setLeftTab("alerts");
+    setRightTab("agents");
+  };
 
   const T = darkMode ? DARK_T : LIGHT_T;
 
@@ -1241,6 +1265,23 @@ export default function App() {
           >
             {darkMode ? "☀ Light" : "☾ Dark"}
           </button>
+          <button
+            style={{
+              fontFamily: M,
+              fontSize: 9,
+              padding: "4px 12px",
+              borderRadius: 5,
+              border: `1px solid ${T.accent}`,
+              background: T.accentDim,
+              color: T.accent,
+              cursor: "pointer",
+              letterSpacing: ".06em",
+              fontWeight: 600,
+            }}
+            onClick={runDemo}
+          >
+            ▶ Run Demo
+          </button>
         </div>
       </div>
 
@@ -1258,6 +1299,12 @@ export default function App() {
           <div style={S.kL}>Stress now</div>
           <div style={S.kV(tkNow.stressIndex)}>
             {(tkNow.stressIndex * 100).toFixed(0)}%
+          </div>
+          <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, tkNow.stressIndex * 100)}%`, background: tkNow.stressIndex > 0.5 ? T.red : tkNow.stressIndex > 0.25 ? T.amber : T.green, borderRadius: 2, transition: "width .3s" }} />
+            {[cfg.l1Threshold, cfg.l2Threshold, cfg.l3Threshold].map((th, i) => (
+              <div key={i} style={{ position: "absolute", left: `${th * 100}%`, top: 0, height: "100%", width: 1, background: T.border }} />
+            ))}
           </div>
           <div style={S.kS}>
             base {(tkNow.baseStress * 100).toFixed(0)} · sla{" "}
@@ -1278,6 +1325,12 @@ export default function App() {
           <div style={S.kV(tk15.stressIndex)}>
             {(tk15.stressIndex * 100).toFixed(0)}%
           </div>
+          <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, tk15.stressIndex * 100)}%`, background: tk15.stressIndex > 0.5 ? T.red : tk15.stressIndex > 0.25 ? T.amber : T.green, borderRadius: 2, transition: "width .3s" }} />
+            {[cfg.l1Threshold, cfg.l2Threshold, cfg.l3Threshold].map((th, i) => (
+              <div key={i} style={{ position: "absolute", left: `${th * 100}%`, top: 0, height: "100%", width: 1, background: T.border }} />
+            ))}
+          </div>
           <div style={S.kS}>
             demand {tk15.incomingOrders.toFixed(0)}/hr · ±3% CI
           </div>
@@ -1294,6 +1347,12 @@ export default function App() {
           <div style={S.kL}>@ {hLabel(Math.min(24, nowHour + 0.5))} (+30m)</div>
           <div style={S.kV(tk30.stressIndex)}>
             {(tk30.stressIndex * 100).toFixed(0)}%
+          </div>
+          <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, tk30.stressIndex * 100)}%`, background: tk30.stressIndex > 0.5 ? T.red : tk30.stressIndex > 0.25 ? T.amber : T.green, borderRadius: 2, transition: "width .3s" }} />
+            {[cfg.l1Threshold, cfg.l2Threshold, cfg.l3Threshold].map((th, i) => (
+              <div key={i} style={{ position: "absolute", left: `${th * 100}%`, top: 0, height: "100%", width: 1, background: T.border }} />
+            ))}
           </div>
           <div style={S.kS}>
             demand {tk30.incomingOrders.toFixed(0)}/hr · ±6% CI
@@ -1437,29 +1496,17 @@ export default function App() {
 
               <div style={{ ...S.sh, marginTop: 14 }}>Levers</div>
               {[
-                {
-                  l: `L1 >${(cfg.l1Threshold * 100).toFixed(0)}% — 2 orders/trip`,
-                  on: tkNow.l1,
-                },
-                {
-                  l: `L2 >${(cfg.l2Threshold * 100).toFixed(0)}% — recall +${(cfg.l2CallbackFrac * 100).toFixed(0)}%`,
-                  on: tkNow.l2,
-                },
-                {
-                  l: `L3 >${(cfg.l3Threshold * 100).toFixed(0)}% — all-hands`,
-                  on: tkNow.l3,
-                },
+                { id: "l1", l: `L1 >${(cfg.l1Threshold * 100).toFixed(0)}% — 2 orders/trip`, on: tkNow.l1 },
+                { id: "l2", l: `L2 >${(cfg.l2Threshold * 100).toFixed(0)}% — recall +${(cfg.l2CallbackFrac * 100).toFixed(0)}%`, on: tkNow.l2 },
+                { id: "l3", l: `L3 >${(cfg.l3Threshold * 100).toFixed(0)}% — all-hands`, on: tkNow.l3 },
               ].map((lv, i) => (
                 <div key={i} style={S.lever(lv.on)}>
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: lv.on ? T.amber : T.textLo,
-                    }}
-                  />
-                  L{i + 1} {lv.on ? "ACTIVE" : "—"} {lv.l}
+                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: lv.on ? T.amber : T.textLo }} />
+                  L{i + 1} {lv.on ? "ACTIVE" : "—"}
+                  {lv.on && acceptedByAI.has(lv.id) && (
+                    <span style={{ fontFamily: M, fontSize: 7, background: T.accent, color: T.accentFg, borderRadius: 3, padding: "1px 5px", marginLeft: 4, letterSpacing: ".06em" }}>AI</span>
+                  )}
+                  {" "}{lv.l}
                 </div>
               ))}
             </div>
@@ -3038,29 +3085,17 @@ export default function App() {
               <div style={S.card}>
                 <div style={S.cardTitle}>Corrective levers</div>
                 {[
-                  {
-                    l: `L1 >${(cfg.l1Threshold * 100).toFixed(0)}% — captains carry 2 orders/trip (×2 throughput)`,
-                    on: tkNow.l1,
-                  },
-                  {
-                    l: `L2 >${(cfg.l2Threshold * 100).toFixed(0)}% — recall off-shift captains (+${(cfg.l2CallbackFrac * 100).toFixed(0)}%)`,
-                    on: tkNow.l2,
-                  },
-                  {
-                    l: `L3 >${(cfg.l3Threshold * 100).toFixed(0)}% — all-hands (+${(cfg.l3CaptainFrac * 100).toFixed(0)}% caps, +${(cfg.l3PackerFrac * 100).toFixed(0)}% paks)`,
-                    on: tkNow.l3,
-                  },
+                  { id: "l1", l: `L1 >${(cfg.l1Threshold * 100).toFixed(0)}% — captains carry 2 orders/trip (×2 throughput)`, on: tkNow.l1 },
+                  { id: "l2", l: `L2 >${(cfg.l2Threshold * 100).toFixed(0)}% — recall off-shift captains (+${(cfg.l2CallbackFrac * 100).toFixed(0)}%)`, on: tkNow.l2 },
+                  { id: "l3", l: `L3 >${(cfg.l3Threshold * 100).toFixed(0)}% — all-hands (+${(cfg.l3CaptainFrac * 100).toFixed(0)}% caps, +${(cfg.l3PackerFrac * 100).toFixed(0)}% paks)`, on: tkNow.l3 },
                 ].map((lv, i) => (
                   <div key={i} style={S.lever(lv.on)}>
-                    <div
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: lv.on ? T.amber : T.textLo,
-                      }}
-                    />
-                    L{i + 1} {lv.on ? "ACTIVE" : "—"} {lv.l}
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: lv.on ? T.amber : T.textLo }} />
+                    L{i + 1} {lv.on ? "ACTIVE" : "—"}
+                    {lv.on && acceptedByAI.has(lv.id) && (
+                      <span style={{ fontFamily: M, fontSize: 7, background: T.accent, color: T.accentFg, borderRadius: 3, padding: "1px 5px", marginLeft: 4, letterSpacing: ".06em" }}>AI</span>
+                    )}
+                    {" "}{lv.l}
                   </div>
                 ))}
               </div>
@@ -3371,7 +3406,7 @@ export default function App() {
                 GenAI agent log · {hLabel(nowHour)}
               </div>
               {aiRecs.map((r, i) => (
-                <div key={i} style={{ ...S.card, marginBottom: 12 }}>
+                <div key={i} style={{ ...S.card, marginBottom: 12, borderLeft: `3px solid ${r.sev === "high" || r.sev === "critical" ? T.amber : r.sev === "medium" ? T.yellow : r.sev === "ok" ? T.green : T.blue}` }}>
                   <div
                     style={{
                       display: "flex",
@@ -3493,13 +3528,23 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
-                    <button
-                      style={{ ...S.btn("success"), fontSize: 9, opacity: 0.6 }}
-                      disabled
-                    >
-                      Accept ↗
-                    </button>
+                  <div style={{ marginTop: 10, display: "flex", gap: 6, alignItems: "center" }}>
+                    {r.interventionId && acceptedByAI.has(r.interventionId) ? (
+                      <span style={{ fontFamily: M, fontSize: 9, color: T.green, display: "flex", alignItems: "center", gap: 4 }}>
+                        <span style={{ background: T.greenBg, border: `1px solid ${T.greenBd}`, borderRadius: 4, padding: "4px 10px" }}>✓ Applied to What-If</span>
+                      </span>
+                    ) : r.interventionId ? (
+                      <button
+                        style={{ ...S.btn("success"), fontSize: 9 }}
+                        onClick={() => handleAccept(r.interventionId)}
+                      >
+                        Accept ↗
+                      </button>
+                    ) : (
+                      <button style={{ ...S.btn(), fontSize: 9, opacity: 0.35, cursor: "default" }} disabled>
+                        Accept ↗
+                      </button>
+                    )}
                     <button
                       style={{ ...S.btn(), fontSize: 9 }}
                       onClick={() => setLeftTab("whatif")}
