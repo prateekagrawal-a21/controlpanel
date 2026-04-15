@@ -56,5 +56,5 @@ jobs:
           script: |
             sudo chown -R www-data:www-data /var/www/controlpanel
             sudo chmod -R 755 /var/www/controlpanel
-            sudo nginx -t && sudo systemctl reload nginx
+            sudo nginx -t && (sudo systemctl reload nginx || sudo systemctl start nginx)
             echo "Deploy complete at $(date)"
