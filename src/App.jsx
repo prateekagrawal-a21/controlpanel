@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import {
-  LineChart,
+  ComposedChart,
   Line,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -802,6 +803,59 @@ function Tip({ active, payload, label, T }) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   INFO HOVER-CARD
+═══════════════════════════════════════════════════════════════ */
+function Info({ text, T: theme }) {
+  const t = theme || DARK_T;
+  const [pos, setPos] = useState(null);
+  return (
+    <span style={{ position: "relative", display: "inline-flex", verticalAlign: "middle" }}>
+      <span
+        onMouseEnter={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setPos({ top: r.bottom + 6, left: r.left });
+        }}
+        onMouseLeave={() => setPos(null)}
+        style={{
+          fontFamily: M,
+          fontSize: 9,
+          color: t.textMid,
+          cursor: "default",
+          opacity: 0.6,
+          userSelect: "none",
+          marginLeft: 4,
+          lineHeight: 1,
+        }}
+      >
+        ⓘ
+      </span>
+      {pos && (
+        <div
+          style={{
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
+            zIndex: 9999,
+            background: t.surface,
+            border: `1px solid ${t.border}`,
+            borderRadius: 6,
+            padding: "7px 10px",
+            maxWidth: 220,
+            fontSize: 11,
+            color: t.textMid,
+            lineHeight: 1.6,
+            boxShadow: "0 4px 14px rgba(0,0,0,.35)",
+            pointerEvents: "none",
+          }}
+        >
+          {text}
+        </div>
+      )}
+    </span>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    APP
 ═══════════════════════════════════════════════════════════════ */
 export default function App() {
@@ -826,6 +880,14 @@ export default function App() {
   });
   const toggleSeries = (k) => setVisible((v) => ({ ...v, [k]: !v[k] }));
   const [acceptedByAI, setAcceptedByAI] = useState(new Set());
+  const [demoStep, setDemoStep] = useState(0); // 0=idle, 1=loaded, 2=accepted
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (msg, type = "info") => {
+    const id = Date.now();
+    setToasts((t) => [...t.slice(-2), { id, msg, type }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
+  };
 
   const handleAccept = (interventionId) => {
     if (!interventionId) return;
@@ -835,6 +897,8 @@ export default function App() {
     setAcceptedByAI((s) => new Set([...s, interventionId]));
     setWiActive(true);
     setRightTab("monitor");
+    setDemoStep((d) => Math.max(d, 2));
+    addToast("✓ Recommendation applied — simulation updated", "success");
   };
 
   const runDemo = () => {
@@ -845,6 +909,8 @@ export default function App() {
     setAcceptedByAI(new Set());
     setLeftTab("alerts");
     setRightTab("agents");
+    setDemoStep(1);
+    addToast("▶ Demo loaded — 7pm peak scenario active");
   };
 
   const T = darkMode ? DARK_T : LIGHT_T;
@@ -1284,6 +1350,49 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {/* ── DEMO BANNER ── */}
+      {demoStep > 0 && (
+        <div
+          style={{
+            background: T.accentDim,
+            borderBottom: `1px solid ${T.accent}40`,
+            padding: "6px 24px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexShrink: 0,
+          }}
+        >
+          <span style={{ fontFamily: M, fontSize: 9, color: T.accent, letterSpacing: ".08em" }}>
+            {demoStep === 1
+              ? "DEMO · Step 1: Review alerts → Step 2: Accept AI recommendation in Agent Log → Step 3: See impact on Monitor"
+              : "DEMO · Step 3 — Switch to Monitor to see what-if forecast. Peak stress reduced by intervention."}
+          </span>
+          <button
+            style={{
+              fontFamily: M,
+              fontSize: 9,
+              padding: "3px 10px",
+              borderRadius: 4,
+              border: `1px solid ${T.accent}50`,
+              background: "transparent",
+              color: T.accent,
+              cursor: "pointer",
+              marginLeft: "auto",
+              letterSpacing: ".06em",
+            }}
+            onClick={() => {
+              setDemoStep(0);
+              setWiActive(false);
+              setSelectedInterventions([]);
+              setAcceptedByAI(new Set());
+            }}
+          >
+            ✕ Exit demo
+          </button>
+        </div>
+      )}
 
       {/* ── KPI STRIP ── */}
       <div style={S.kpiStrip}>
@@ -2467,7 +2576,7 @@ export default function App() {
                 </div>
                 <div style={{ height: 230 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
+                    <ComposedChart
                       data={monitorData}
                       margin={{ top: 4, right: 40, bottom: 4, left: 0 }}
                     >
@@ -2718,6 +2827,20 @@ export default function App() {
                             legendType="none"
                             opacity={0.35}
                           />
+                          {wiActive && (
+                            <Area
+                              yAxisId="right"
+                              type="monotone"
+                              dataKey="wi_stress"
+                              stroke={T.green}
+                              strokeWidth={2.5}
+                              fill={T.green}
+                              fillOpacity={0.1}
+                              dot={false}
+                              connectNulls={false}
+                              name="What-if stress"
+                            />
+                          )}
                         </>
                       )}
                       <ReferenceLine
@@ -2806,7 +2929,7 @@ export default function App() {
                           />
                         ));
                       })()}
-                    </LineChart>
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
                 <div
@@ -3405,6 +3528,85 @@ export default function App() {
               >
                 GenAI agent log · {hLabel(nowHour)}
               </div>
+
+              {/* Demo script guide */}
+              {demoStep > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    marginBottom: 18,
+                    background: T.surface,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 8,
+                    padding: "12px 16px",
+                  }}
+                >
+                  {[
+                    { n: 1, label: "Alerts fired", done: demoStep >= 1 },
+                    { n: 2, label: "Accept AI rec", done: demoStep >= 2 },
+                    { n: 3, label: "View impact", done: demoStep >= 3 },
+                  ].map((step, i) => (
+                    <div
+                      key={i}
+                      style={{ display: "flex", alignItems: "center", flex: 1 }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          flex: 1,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 26,
+                            height: 26,
+                            borderRadius: "50%",
+                            background: step.done ? T.accent : T.surface2,
+                            border: `2px solid ${step.done ? T.accent : T.border}`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontFamily: M,
+                            fontSize: 10,
+                            fontWeight: 600,
+                            color: step.done ? T.accentFg : T.textMid,
+                            transition: "all .3s",
+                          }}
+                        >
+                          {step.n}
+                        </div>
+                        <div
+                          style={{
+                            fontFamily: M,
+                            fontSize: 8,
+                            color: step.done ? T.accent : T.textMid,
+                            marginTop: 5,
+                            textAlign: "center",
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {step.label}
+                        </div>
+                      </div>
+                      {i < 2 && (
+                        <div
+                          style={{
+                            width: 24,
+                            height: 2,
+                            background: demoStep > i + 1 ? T.accent : T.border,
+                            marginBottom: 18,
+                            transition: "background .3s",
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {aiRecs.map((r, i) => (
                 <div key={i} style={{ ...S.card, marginBottom: 12, borderLeft: `3px solid ${r.sev === "high" || r.sev === "critical" ? T.amber : r.sev === "medium" ? T.yellow : r.sev === "ok" ? T.green : T.blue}` }}>
                   <div
@@ -3575,7 +3777,43 @@ export default function App() {
           )}
         </div>
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}} select option{background:${T.surface};color:${T.textHi};}`}</style>
+      {/* ── TOASTS ── */}
+      {toasts.length > 0 && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            zIndex: 9999,
+            display: "flex",
+            flexDirection: "column-reverse",
+            gap: 8,
+            pointerEvents: "none",
+          }}
+        >
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              style={{
+                background: toast.type === "success" ? T.greenBg : T.surface,
+                border: `1px solid ${toast.type === "success" ? T.greenBd : T.border}`,
+                borderRadius: 8,
+                padding: "10px 16px",
+                fontFamily: M,
+                fontSize: 11,
+                color: toast.type === "success" ? T.green : T.textHi,
+                boxShadow: "0 4px 16px rgba(0,0,0,.4)",
+                animation: "toastIn .25s ease",
+                maxWidth: 320,
+              }}
+            >
+              {toast.msg}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <style>{`@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}} @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}} select option{background:${T.surface};color:${T.textHi};}`}</style>
     </div>
   );
 }
