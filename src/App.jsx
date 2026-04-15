@@ -672,52 +672,52 @@ function generateAIRecs(alerts, now, p) {
    THEME
 ═══════════════════════════════════════════════════════════════ */
 const DARK_T = {
-  bg: "#0f0f0f",
-  surface: "#1a1a1a",
-  surface2: "#222222",
-  border: "#2a2a2a",
+  bg: "#111111",
+  surface: "#1c1c1c",
+  surface2: "#252525",
+  border: "#303030",
   accent: "#D4C919",
-  accentDim: "#2a2700",
+  accentDim: "#2c2900",
   accentFg: "#0f0f0f",
-  textHi: "#f0ede6",
-  textMid: "#a09a8e",
+  textHi: "#f2efe8",
+  textMid: "#b0a898",
   textLo: "#5a5550",
-  red: "#e05252",
+  red: "#ef5f5f",
   redBg: "#2a1010",
-  redBd: "#4a2020",
-  amber: "#d4900a",
+  redBd: "#5a2424",
+  amber: "#f0a030",
   amberBg: "#2a1e00",
-  amberBd: "#4a3000",
-  green: "#34d399",
-  greenBg: "#0d2010",
-  greenBd: "#1a4020",
+  amberBd: "#5a3800",
+  green: "#3ddc97",
+  greenBg: "#0d2018",
+  greenBd: "#1e4830",
   yellow: "#D4C919",
   yellowBg: "#2a2700",
   yellowBd: "#3a3500",
-  blue: "#60a5fa",
-  blueBg: "#0d1520",
-  blueBd: "#1a2a40",
+  blue: "#6cb4ff",
+  blueBg: "#0d1828",
+  blueBd: "#1e3458",
   series: {
-    incoming: "#e05252",
-    pending: "#d4900a",
-    shift: "#9d94f0",
-    avail: "#34d399",
-    stress: "#60a5fa",
+    incoming: "#ef5f5f",
+    pending: "#f0a030",
+    shift: "#a89cf0",
+    avail: "#3ddc97",
+    stress: "#6cb4ff",
   },
-  chartGrid: "rgba(255,255,255,.04)",
-  scrubberHighlight: "rgba(212,201,25,.12)",
+  chartGrid: "rgba(255,255,255,.05)",
+  scrubberHighlight: "rgba(212,201,25,.14)",
 };
 const LIGHT_T = {
-  bg: "#f5f3ee",
+  bg: "#f0ede8",
   surface: "#ffffff",
-  surface2: "#edeae3",
-  border: "#dedad0",
-  accent: "#2563a8",
-  accentDim: "#eaf1fb",
+  surface2: "#f5f2ed",
+  border: "#e0dbd0",
+  accent: "#1e54a0",
+  accentDim: "#e6effc",
   accentFg: "#ffffff",
-  textHi: "#1c1a16",
-  textMid: "#9c9484",
-  textLo: "#c8c3b6",
+  textHi: "#18160f",
+  textMid: "#7a7264",
+  textLo: "#c0bab0",
   red: "#c0392b",
   redBg: "#fdecea",
   redBd: "#f5c6cb",
@@ -967,24 +967,32 @@ export default function App() {
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
+      background: T.bg,
     },
     tabs: {
       display: "flex",
       borderBottom: `1px solid ${T.border}`,
+      background: T.surface,
       flexShrink: 0,
+      gap: 2,
+      padding: "0 8px",
     },
     tab: (a) => ({
-      padding: "8px 16px",
-      fontFamily: M,
-      fontSize: 10,
-      letterSpacing: ".08em",
-      textTransform: "uppercase",
-      color: a ? T.accent : T.textMid,
+      padding: "10px 16px",
+      fontFamily: "'DM Sans','IBM Plex Sans',sans-serif",
+      fontSize: 12,
+      fontWeight: a ? 600 : 500,
+      letterSpacing: ".02em",
+      color: a ? T.accent : T.textHi,
       cursor: "pointer",
-      borderBottom: a ? `2px solid ${T.accent}` : "2px solid transparent",
-      background: "none",
       border: "none",
+      outline: "none",
+      borderBottom: a ? `2px solid ${T.accent}` : "2px solid transparent",
+      background: a ? T.accentDim : "transparent",
       marginBottom: "-1px",
+      borderRadius: "4px 4px 0 0",
+      transition: "color .15s, background .15s",
+      whiteSpace: "nowrap",
     }),
     scroll: { flex: 1, overflowY: "auto", padding: "12px 14px" },
     sh: {
@@ -1026,17 +1034,17 @@ export default function App() {
       color: T.textMid,
       marginBottom: 3,
     },
-    kV: (s) => ({
+    kV: () => ({
       fontFamily: M,
       fontSize: 22,
-      fontWeight: 500,
+      fontWeight: 600,
       lineHeight: 1,
-      color: s > 0.6 ? T.red : s > 0.25 ? T.amber : T.green,
+      color: T.textHi,
     }),
     kS: { fontFamily: M, fontSize: 9, color: T.textMid, marginTop: 3 },
     btn: (v = "default") => {
       const variants = {
-        default: { bg: T.surface2, bd: T.border, c: T.textMid },
+        default: { bg: T.surface2, bd: T.border, c: T.textHi },
         primary: { bg: T.accent, bd: T.accent, c: T.accentFg },
         danger: { bg: T.redBg, bd: T.red, c: T.red },
         success: { bg: T.greenBg, bd: T.green, c: T.green },
@@ -1211,8 +1219,9 @@ export default function App() {
       <div style={S.header}>
         <img
           src="/a21.ai-logo-black-bg-png-01-01.webp"
-          style={{ height: 28, display: "block" }}
+          style={{ height: 28, display: "block", cursor: "pointer" }}
           alt="a21"
+          onClick={() => window.location.reload()}
         />
         <select
           value={stationId}
@@ -1282,9 +1291,9 @@ export default function App() {
             "HISTORICAL"
           )}
         </div>
-        {critCount > 0 && (
+        {alerts.length > 0 && (
           <div style={S.badge(T.red, T.redBg, T.redBd)}>
-            {critCount} ALERT{critCount > 1 ? "S" : ""}
+            {alerts.length} ALERT{alerts.length > 1 ? "S" : ""}
           </div>
         )}
         {wiActive && (
@@ -1406,7 +1415,7 @@ export default function App() {
           )}
         >
           <div style={S.kL}>Stress now</div>
-          <div style={S.kV(tkNow.stressIndex)}>
+          <div style={S.kV()}>
             {(tkNow.stressIndex * 100).toFixed(0)}%
           </div>
           <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
@@ -1431,7 +1440,7 @@ export default function App() {
           )}
         >
           <div style={S.kL}>@ {hLabel(nowHour + 0.25)} (+15m)</div>
-          <div style={S.kV(tk15.stressIndex)}>
+          <div style={S.kV()}>
             {(tk15.stressIndex * 100).toFixed(0)}%
           </div>
           <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
@@ -1454,7 +1463,7 @@ export default function App() {
           )}
         >
           <div style={S.kL}>@ {hLabel(Math.min(24, nowHour + 0.5))} (+30m)</div>
-          <div style={S.kV(tk30.stressIndex)}>
+          <div style={S.kV()}>
             {(tk30.stressIndex * 100).toFixed(0)}%
           </div>
           <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
@@ -1469,21 +1478,11 @@ export default function App() {
         </div>
         <div style={S.kpi(omsNow.slaRate > 0.3 ? "high" : null)}>
           <div style={S.kL}>SLA breach rate</div>
-          <div
-            style={{
-              fontFamily: M,
-              fontSize: 22,
-              fontWeight: 500,
-              lineHeight: 1,
-              color:
-                omsNow.slaRate > 0.3
-                  ? T.red
-                  : omsNow.slaRate > 0.1
-                    ? T.amber
-                    : T.green,
-            }}
-          >
+          <div style={S.kV()}>
             {((omsNow.slaRate || 0) * 100).toFixed(0)}%
+          </div>
+          <div style={{ height: 3, background: T.surface2, borderRadius: 2, margin: "5px 0 4px", position: "relative" }}>
+            <div style={{ height: "100%", width: `${Math.min(100, (omsNow.slaRate || 0) * 100 * 3)}%`, background: omsNow.slaRate > 0.3 ? T.red : omsNow.slaRate > 0.1 ? T.amber : T.green, borderRadius: 2, transition: "width .3s" }} />
           </div>
           <div style={S.kS}>
             {omsNow.slaBreached || 0} / {omsNow.slaDenom || 0} this slot
@@ -1505,10 +1504,9 @@ export default function App() {
                 key={id}
                 style={{
                   ...S.tab(leftTab === id),
-                  color:
-                    id === "alerts" && critCount > 0 && leftTab !== id
-                      ? T.red
-                      : undefined,
+                  ...(id === "alerts" && critCount > 0 && leftTab !== id
+                    ? { color: T.red }
+                    : {}),
                 }}
                 onClick={() => setLeftTab(id)}
               >
@@ -1929,7 +1927,7 @@ export default function App() {
                       >
                         Baseline peak
                       </div>
-                      <div style={S.kV(peakTk.stressIndex)}>
+                      <div style={S.kV()}>
                         {(peakTk.stressIndex * 100).toFixed(0)}%
                         <span
                           style={{
@@ -1949,7 +1947,7 @@ export default function App() {
                       >
                         What-if peak
                       </div>
-                      <div style={S.kV(wiPeak.stressIndex)}>
+                      <div style={S.kV()}>
                         {(wiPeak.stressIndex * 100).toFixed(0)}%
                         <span
                           style={{
