@@ -497,6 +497,53 @@ function hLabel(h) {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   NIFTY/SENSEX STYLE — seeded noise + upsampling
+═══════════════════════════════════════════════════════════════ */
+function seededRand(seed) {
+  let s = (seed | 0) || 123456789;
+  return () => {
+    s ^= s << 13;
+    s ^= s >> 17;
+    s ^= s << 5;
+    return ((s >>> 0) / 4294967296);
+  };
+}
+
+function noisifyData(rows, steps = 8) {
+  if (!rows || rows.length < 2) return rows;
+  const seed = Math.round(
+    rows.reduce((acc, r) => acc + (r.incoming || 0) + (r.stress || 0) * 100, 0) * 37,
+  );
+  const rand = seededRand(seed);
+  const NF = [
+    'incoming', 'pending', 'capsOnShift', 'capsAvail', 'stress',
+    'fc_incoming', 'fc_pending', 'fc_caps', 'fc_stress',
+    'stress_hi', 'stress_lo', 'pending_hi', 'pending_lo',
+    'incoming_hi', 'incoming_lo', 'caps_hi', 'caps_lo',
+    'wi_stress', 'wi_pending', 'wi_caps',
+  ];
+  const out = [];
+  for (let i = 0; i < rows.length - 1; i++) {
+    const a = rows[i], b = rows[i + 1];
+    const dh = (b.hour - a.hour) / steps;
+    for (let j = 0; j < steps; j++) {
+      const t = j / steps;
+      const row = { ...a, hour: +(a.hour + j * dh).toFixed(6) };
+      NF.forEach((f) => {
+        const av = a[f], bv = b[f];
+        if (av == null && bv == null) { row[f] = null; return; }
+        const base = (av != null && bv != null) ? av + t * (bv - av) : (av ?? bv);
+        const noise = (rand() - 0.5) * 0.055 * Math.abs(base || 1);
+        row[f] = Math.max(0, (base || 0) + noise);
+      });
+      out.push(row);
+    }
+  }
+  out.push(rows[rows.length - 1]);
+  return out;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    MONITOR CHART DATA — OMS actuals + sim capacity, clean lines
 ═══════════════════════════════════════════════════════════════ */
 function buildMonitorData(omsSlots, baseTicks, nowHour, wiTicks) {
@@ -1167,6 +1214,7 @@ export default function App() {
     () => buildMonitorData(omsData.slots, baseTicks, nowHour, wiTicks),
     [omsData, baseTicks, nowHour, wiTicks],
   );
+  const noisedMonitorData = useMemo(() => noisifyData(monitorData), [monitorData]);
 
   const idxNow = Math.min(Math.round(nowHour / DT), baseTicks.length - 1);
   const idx15 = Math.min(idxNow + 1, baseTicks.length - 1);
@@ -2575,9 +2623,19 @@ export default function App() {
                 <div style={{ height: 230 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart
-                      data={monitorData}
+                      data={noisedMonitorData}
                       margin={{ top: 4, right: 40, bottom: 4, left: 0 }}
                     >
+                      <defs>
+                        <linearGradient id="stressGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={T.series.stress} stopOpacity={0.35} />
+                          <stop offset="100%" stopColor={T.series.stress} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="incomingGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={T.series.incoming} stopOpacity={0.2} />
+                          <stop offset="100%" stopColor={T.series.incoming} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
                       <CartesianGrid
                         strokeDasharray="3 3"
                         stroke={T.chartGrid}
@@ -2614,18 +2672,20 @@ export default function App() {
                       <Tooltip content={(props) => <Tip {...props} T={T} />} />
                       {visible.incoming && (
                         <>
-                          <Line
+                          <Area
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="incoming"
                             stroke={T.series.incoming}
                             strokeWidth={1.5}
+                            fill="url(#incomingGrad)"
+                            fillOpacity={1}
                             dot={false}
                             name="Incoming"
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="fc_incoming"
                             stroke={T.series.incoming}
                             strokeWidth={1.5}
@@ -2640,7 +2700,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="incoming_hi"
                             stroke={T.series.incoming}
                             strokeWidth={1}
@@ -2652,7 +2712,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="incoming_lo"
                             stroke={T.series.incoming}
                             strokeWidth={1}
@@ -2668,7 +2728,7 @@ export default function App() {
                         <>
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="pending"
                             stroke={T.series.pending}
                             strokeWidth={1.5}
@@ -2677,7 +2737,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="fc_pending"
                             stroke={T.series.pending}
                             strokeWidth={1.5}
@@ -2692,7 +2752,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="pending_hi"
                             stroke={T.series.pending}
                             strokeWidth={1}
@@ -2704,7 +2764,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="pending_lo"
                             stroke={T.series.pending}
                             strokeWidth={1}
@@ -2719,7 +2779,7 @@ export default function App() {
                       {visible.capsOnShift && (
                         <Line
                           yAxisId="left"
-                          type="monotone"
+                          type="linear"
                           dataKey="capsOnShift"
                           stroke={T.series.shift}
                           strokeWidth={1.5}
@@ -2731,7 +2791,7 @@ export default function App() {
                         <>
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="capsAvail"
                             stroke={T.series.avail}
                             strokeWidth={1.5}
@@ -2740,7 +2800,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="fc_caps"
                             stroke={T.series.avail}
                             strokeWidth={1.5}
@@ -2751,7 +2811,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="caps_hi"
                             stroke={T.series.avail}
                             strokeWidth={1}
@@ -2763,7 +2823,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="left"
-                            type="monotone"
+                            type="linear"
                             dataKey="caps_lo"
                             stroke={T.series.avail}
                             strokeWidth={1}
@@ -2777,18 +2837,20 @@ export default function App() {
                       )}
                       {visible.stress && (
                         <>
-                          <Line
+                          <Area
                             yAxisId="right"
-                            type="monotone"
+                            type="linear"
                             dataKey="stress"
                             stroke={T.series.stress}
-                            strokeWidth={1.5}
+                            strokeWidth={2}
+                            fill="url(#stressGrad)"
+                            fillOpacity={1}
                             dot={false}
                             name="Stress %"
                           />
                           <Line
                             yAxisId="right"
-                            type="monotone"
+                            type="linear"
                             dataKey="fc_stress"
                             stroke={T.series.stress}
                             strokeWidth={1.5}
@@ -2803,7 +2865,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="right"
-                            type="monotone"
+                            type="linear"
                             dataKey="stress_hi"
                             stroke={T.series.stress}
                             strokeWidth={1}
@@ -2815,7 +2877,7 @@ export default function App() {
                           />
                           <Line
                             yAxisId="right"
-                            type="monotone"
+                            type="linear"
                             dataKey="stress_lo"
                             stroke={T.series.stress}
                             strokeWidth={1}
@@ -2828,7 +2890,7 @@ export default function App() {
                           {wiActive && (
                             <Area
                               yAxisId="right"
-                              type="monotone"
+                              type="linear"
                               dataKey="wi_stress"
                               stroke={T.green}
                               strokeWidth={2.5}
